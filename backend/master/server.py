@@ -250,7 +250,11 @@ class Master:
         if job is None:
             return err, code
         data = self.metrics.job_metrics(job_id)
-        data["avg_latency_ms"] = round(data["avg_latency_ms"] / 1000.0, 3)
+        if data["task_count"] and not data["total_records_processed"]:
+            tasks = self.job_manager.tasks_for(job_id)
+            succeeded = [t for t in tasks if t.status == C.TASK_SUCCEEDED]
+            data["total_records_processed"] = sum(t.records_processed for t in succeeded)
+            data["total_records_emitted"] = sum(t.records_emitted for t in succeeded)
         return jsonify(data)
 
     def _job_faults(self, job_id: str):

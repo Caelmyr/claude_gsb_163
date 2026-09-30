@@ -21,6 +21,25 @@ def _mean(values: list[float]) -> float:
     return round(sum(values) / len(values), 2) if values else 0.0
 
 
+def _sample_is_legacy(sample: dict) -> bool:
+    return "records_processed" not in sample
+
+
+def _normalize_sample(sample: dict) -> dict:
+    if not _sample_is_legacy(sample):
+        return sample
+    # Samples written before duration_ms was fixed carried seconds in that
+    # field.  Their rates are therefore 1000x too large and latencies 1000x
+    # too small.
+    if sample.get("records_per_sec"):
+        sample["records_per_sec"] = round(float(sample["records_per_sec"]) / 1000.0, 2)
+    if sample.get("throughput"):
+        sample["throughput"] = round(float(sample["throughput"]) / 1000.0, 2)
+    if sample.get("task_latency_ms"):
+        sample["task_latency_ms"] = round(float(sample["task_latency_ms"]) * 1000.0, 1)
+    return sample
+
+
 class Metrics:
     def __init__(self, storage: Storage) -> None:
         self.storage = storage
@@ -46,14 +65,17 @@ class Metrics:
             job_id=job.job_id,
             worker_id=task.worker_id or "",
             records_per_sec=round(task.records_processed / secs, 2),
-            task_latency_ms=round(duration_ms / 1000.0, 1),
+            task_latency_ms=round(duration_ms, 1),
+            records_processed=task.records_processed,
+            records_emitted=task.records_emitted,
             throughput=round(task.records_emitted / secs, 2),
         )
         self.storage.append(sample.to_dict(), "metrics", "jobs", f"{job.job_id}.jsonl")
 
     # -- queries ------------------------------------------------------
     def job_samples(self, job_id: str) -> list[dict]:
-        return read_jsonl(self.storage.path("metrics", "jobs", f"{job_id}.jsonl"))
+        path = self.storage.path("metrics", "jobs", f"{job_id}.jsonl")
+        return [_normalize_sample(s) for s in read_jsonl(path)]
 
     def worker_samples(self, worker_id: str) -> list[dict]:
         return read_jsonl(self.storage.path("metrics", "workers", f"{worker_id}.jsonl"))
@@ -70,7 +92,7 @@ class Metrics:
             "total_records_processed": total_records,
             "total_records_emitted": total_emitted,
             "avg_throughput_rps": _mean(rates),
-            "peak_throughput_rps": round(min(rates), 2) if rates else 0.0,
+            "peak_throughput_rps": round(max(rates), 2) if rates else 0.0,
             "avg_latency_ms": _mean(latencies),
             "samples": samples[-300:],
         }

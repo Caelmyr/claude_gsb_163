@@ -274,7 +274,7 @@ class Scheduler:
             t.progress = 1.0
             t.records_processed = int(payload.get("records_processed", 0))
             t.records_emitted = int(payload.get("records_emitted", 0))
-            t.duration_ms = int(payload.get("duration_ms", 0)) * 1000
+            t.duration_ms = int(payload.get("duration_ms", 0))
             t.finished_ms = now_ms()
             t.error = ""
             stats = dict(t.stats or {})
