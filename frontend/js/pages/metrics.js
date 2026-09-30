@@ -29,7 +29,7 @@ async function loadJobMetrics() {
     labels, values: throughput, format: v => Math.round(v).toString(), height: 220,
   });
   Charts.barChart(document.getElementById('c-latency'), {
-    labels, values: latency, format: v => Math.round(v) + 'ms', height: 220,
+    labels, values: latency, format: v => v >= 1000 ? (v / 1000).toFixed(1) + 's' : v.toFixed(1) + 'ms', height: 220,
   });
 }
 

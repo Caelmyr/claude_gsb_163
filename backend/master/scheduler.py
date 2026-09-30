@@ -268,13 +268,15 @@ class Scheduler:
             self.fault_tolerance.handle_task_failure(job, task, payload.get("error", ""), worker_id)
             return
 
+        duration_ms = int(payload.get("duration_ms", 0))
+
         # Success path.
         def apply(t: Task) -> None:
             t.status = C.TASK_SUCCEEDED
             t.progress = 1.0
             t.records_processed = int(payload.get("records_processed", 0))
             t.records_emitted = int(payload.get("records_emitted", 0))
-            t.duration_ms = int(payload.get("duration_ms", 0)) * 1000
+            t.duration_ms = duration_ms
             t.finished_ms = now_ms()
             t.error = ""
             stats = dict(t.stats or {})
@@ -285,7 +287,7 @@ class Scheduler:
 
         self.job_manager.apply_task(job.job_id, task.task_id, apply)
         self.registry.task_finished(worker_id, success=True)
-        self.metrics.record_task(job, task, int(payload.get("duration_ms", 0)))
+        self.metrics.record_task(job, task, duration_ms)
 
         if task.kind == C.TASK_REDUCE:
             self._store_results(job, task, payload.get("results", []))
